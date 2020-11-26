@@ -15,20 +15,21 @@ int len;
 
 fakeHead f("127.0.0.1", "127.0.0.1");
 
-bool q;
-void* send(void* args)
+
+void* receive(void*args)
 {
-	while (cin >> sendData)
+	while (true)
 	{
-		sendto(sclient, sendData, strlen(sendData), 0, (sockaddr*)&ssin, len);
-//		//检查断开连接 
-//		if(string(sendData)=="q")
-//		{
-//			q=1;
-//		}
+		char recvData[255];
+		int ret = recvfrom(sclient, recvData, 255, 0, (sockaddr*)&ssin, &len);
+		if (ret > 0)
+		{
+			recvData[ret] = 0x00;
+			printf(recvData);
+			cout << endl;
+		}
 	}
 }
-
 void connect()
 {
 	//第一次握手 
@@ -95,20 +96,18 @@ int main(int argc, char* argv[])
 	//三次握手
 	connect(); 
 	
-	//发送信息要新开一个线程
+	//接受信息要新开一个线程
 	pthread_t* thread = new pthread_t;
-	pthread_create(thread, NULL, send, NULL);
+	pthread_create(thread, NULL, receive, NULL);
 	
-	while (true)
+	//发送信息 
+	while (cin >> sendData)
 	{
-		//if(q)break;
-		char recvData[255];
-		int ret = recvfrom(sclient, recvData, 255, 0, (sockaddr*)&ssin, &len);
-		if (ret > 0)
+		sendto(sclient, sendData, strlen(sendData), 0, (sockaddr*)&ssin, len);
+		//检查断开连接 
+		if(string(sendData)=="q")
 		{
-			recvData[ret] = 0x00;
-			printf(recvData);
-			cout << endl;
+			break;
 		}
 	}
 

@@ -63,21 +63,26 @@ void connect()
 
 void disconnect()
 {
-	
+	cout<<"end"; 
 }
 bool q;
-void* send(void* args)
+
+void* receive(void*args)
 {
-	while (cin >> sendData) {
-		sendto(serSocket, sendData, strlen(sendData), 0, (sockaddr*)&remoteAddr, nAddrLen);
-		//检查断开连接 
-//		if(string(sendData)=="q")
-//		{
-//			q=1;
-//		}
+	nAddrLen = sizeof(remoteAddr);
+	while (true)
+	{
+		char recvData[255];
+		int ret = recvfrom(serSocket, recvData, 255, 0, (sockaddr*)&remoteAddr, &nAddrLen);
+		if (ret > 0)
+		{
+			recvData[ret] = 0x00;
+			printf("接受到一个连接：%s \r\n", inet_ntoa(remoteAddr.sin_addr));
+			printf(recvData);
+			cout << endl;
+		}
 	}
 }
-
 int main(int argc, char* argv[])
 {
 	WSADATA wsaData;
@@ -108,27 +113,22 @@ int main(int argc, char* argv[])
 	//三次握手
 	connect();
 
-	//发送信息要新开一个线程
+	//接受信息要新开一个线程
 	pthread_t* thread = new pthread_t;
-	pthread_create(thread, NULL, send, NULL);
+	pthread_create(thread, NULL, receive, NULL);
 
 	
 	
-	//接收信息 
-	nAddrLen = sizeof(remoteAddr);
-	while (true)
-	{
-		//if(q)break;
-		char recvData[255];
-		int ret = recvfrom(serSocket, recvData, 255, 0, (sockaddr*)&remoteAddr, &nAddrLen);
-		if (ret > 0)
+	//发送信息 
+	while (cin >> sendData) {
+		sendto(serSocket, sendData, strlen(sendData), 0, (sockaddr*)&remoteAddr, nAddrLen);
+		//检查断开连接 
+		if(string(sendData)=="q")
 		{
-			recvData[ret] = 0x00;
-			printf("接受到一个连接：%s \r\n", inet_ntoa(remoteAddr.sin_addr));
-			printf(recvData);
-			cout << endl;
+			break;
 		}
 	}
+	
 	
 	disconnect();
 	
