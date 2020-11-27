@@ -8,6 +8,8 @@
 
 using namespace std;
 
+const double max_len=8;//数据包最大长度 
+
 #pragma comment(lib, "ws2_32.lib") 
 
 string sendData;
@@ -17,7 +19,15 @@ SOCKET serSocket;
 fakeHead f("127.0.0.1", "127.0.0.1");
 bool q;
 int seqnum,acknum; 
+string ack,seq;
 
+//维护全局ack和seq
+void maintain_as()
+{
+	ack =get_32(to_bin(to_string(acknum)));
+	seq =get_32(to_bin(to_string(seqnum)));
+}
+ 
 void connect()
 {
 	//第一次握手(SYN=1, seq=x)
@@ -39,7 +49,7 @@ void connect()
 	
 	//第二次握手 SYN=1, ACK=1, seq=y, ACKnum=x+1	
 	
-	string flag=get_16(""),seq=get_32(to_bin("555")); 
+	string flag=get_16(""),seq=get_32(to_bin("1")); 
 	flag[SYN]='1';flag[ACK]='1';
 	int acknum=stoi(to_dec(p.seq))+1;
 	string ack=get_32(to_string(acknum));
@@ -204,15 +214,25 @@ int main(int argc, char* argv[])
 	//发送信息 
 	while (cin >> sendData) {
 		
-		//正常发送 
-		string flag = get_16("");
-		seqnum += sendData.size(); 
-		string seq = get_32(to_bin(to_string(seqnum))); 
-		string ack = get_32(to_bin(to_string(acknum)));
+		//分组发送
+		int groupNum=ceil(sendData.size()/max_len); 
+		for(int i=0;i<groupNum;++i)
+		{
+			string groupData;
+			
+			if(i<groupNum)groupData=sendData.substr(i*max_len,max_len);
+			else groupData=sendData.substr(i*max_len);
+			
+			string flag = get_16("");
+			seqnum += groupData.size()/8; 
+			maintain_as();
 	
-		package p("8888", "8888", flag, ack, seq, sendData);
-		string sdata = encode(f, p);
-		sendto(serSocket, sdata.c_str(), sdata.size(), 0, (sockaddr*)&remoteAddr, nAddrLen);	
+			package p("8888", "8888", flag, ack, seq, groupData);
+			string sdata = encode(f, p);
+			sendto(serSocket, sdata.c_str(), sdata.size(), 0, (sockaddr*)&remoteAddr, nAddrLen);
+		}
+		
+		
 		
 		//检查断开连接 
 		if(string(sendData)=="q"||q)
