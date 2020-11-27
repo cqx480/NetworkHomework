@@ -10,3 +10,4 @@
 #define RST 3
 #define URG 4
 #define FIN 5
+#define KILL 6
