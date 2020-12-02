@@ -11,3 +11,8 @@
 #define URG 4
 #define FIN 5
 #define KILL 6
+#define ACK_GROUP 7
+
+#define HELLO
+#define NORMAL
+#define GOODBYE
