@@ -10,8 +10,7 @@
 #define RST 3
 #define URG 4
 #define FIN 5
-#define KILL 6
-#define ACK_GROUP 7
+#define ACK_GROUP 6
 
 #define HELLO
 #define NORMAL

@@ -48,6 +48,17 @@ struct package
 	{
 		return flag[ACK]=='1'&&flag[ACK_GROUP]=='0'+t;
 	}
+	void print()
+	{
+		cout<<"SrcPort: "<<srcPort<<"\n";
+		cout<<"desPort: "<<desPort<<"\n";
+		cout<<"len: "<<len<<"\n";
+		cout<<"check_sum: "<<check_sum<<"\n";
+		cout<<"data: "<<data<<"\n";
+		cout<<"flag: "<<flag<<"\n";
+		cout<<"ackNum: "<<ackNum<<"\n";
+		cout<<"seq: "<<seq<<"\n";
+	}
 
 };
 
@@ -164,7 +175,7 @@ void get_sum(fakeHead f, package& p)
 	p.check_sum = ans;
 }
 //伪首部只是用来计算校验和，并不打包进package 
-string encode(fakeHead f, package& p)
+string encode(package& p)
 {
 	string ans = "";
 	ans += match(p.srcPort);
