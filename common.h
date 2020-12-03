@@ -11,6 +11,8 @@
 #define URG 4
 #define FIN 5
 #define ACK_GROUP 6
+#define SEQ_GROUP 7
+
 
 #define HELLO
 #define NORMAL

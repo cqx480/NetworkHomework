@@ -60,10 +60,13 @@ void _rdt_send(string flag)
 	string sdata = encode(p);
 	sendto(sclient, sdata.c_str(), 1024, 0, (sockaddr*)&ssin, len);
 }
-void rdt_send(string s, int t)
+//t代表ack_group，sn代表seq_group
+void rdt_send(string s, int t,int sn)
 {
 	string flag = match("");
-	flag[ACK] = '1'; flag[ACK_GROUP] = '0' + t;
+	flag[ACK] = '1'; 
+	flag[ACK_GROUP] = '0' + t;
+	flag[SEQ_GROUP] = '0' + sn;
 
 	seqnum += s.size() / 8;
 	maintain_as();
@@ -73,9 +76,9 @@ void rdt_send(string s, int t)
 	sendto(sclient, sdata.c_str(), 1024, 0, (sockaddr*)&ssin, len);
 }
 
-void send(string s)
+void send(string s,int i)
 {
-	rdt_send(s, 0);int cnt=0;
+	rdt_send(s, 0, i);int cnt=0;
 	while (1)
 	{
 		while (file_que.empty());
@@ -83,7 +86,7 @@ void send(string s)
 
 		if (check_lose(p) && p.isACK(0))
 		{
-			cnt++;	rdt_send("确认ACK1", 1);
+			cnt++;	rdt_send(s, 1,i);
 		}
 		else if (cnt && check_lose(p) && p.isACK(1))
 		{
@@ -93,11 +96,12 @@ void send(string s)
 		else
 		{
 			cout<<"消息发送失败，正在重新发送\n";
-			cnt=0; rdt_send(s, 0);
+			cnt=0; rdt_send(s, 0, i);
 		}
 		
 	}
 }
+
 void send_manager()
 {
 	while (cin >> sendData)
@@ -107,22 +111,39 @@ void send_manager()
 		{
 			break;
 		}
+		
+//		if(string(sendData) == "picture")
+//		{
+//			send(sendData);
+//			ifstream in("test\\1.jpg",ios::binary);
+//			char buf; 
+//			while(in.read(&buf,sizeof(buf)))
+//			{
+//				for(int i=0;i<sizeof(buf)<<3;++i)
+//				{
+//					if(buf&(1<<i))send_data+='1';
+//					else sendData+='0';
+//				}
+//			}
+//		} 
 
 		//分组发送
 		int groupNum = ceil(sendData.size() / max_len);
+		string groupData;
 		for (int i = 0; i < groupNum; ++i)
 		{
-			string groupData;
 			if (i < (groupNum - 1))groupData = sendData.substr(i * max_len, max_len);
 			else groupData = sendData.substr(i * max_len);
 
 			cout << "groupData: " << groupData << "\n";
-			send(groupData);
+			
+			if(i < groupNum-1)send(groupData,i+1);
+			else send(groupData,0);//最后一组的seq_group设置为0 
 		}
 	}
 }
 
-
+//三次握手 
 void connect()
 {
 	//第一次握手(SYN=1, seq=x)
@@ -143,6 +164,7 @@ void connect()
 	state = 1;
 }
 
+//四次挥手 
 void disconnect()
 {
 	state = 2;

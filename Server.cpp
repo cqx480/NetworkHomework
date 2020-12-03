@@ -30,7 +30,7 @@ void maintain_as()
 }
 
 
-string recv_data;
+string recv_data="";
 void save_pic()
 {
 	char c;
@@ -137,12 +137,13 @@ void* receive(void* args)
 			{				
 				state=2;
 			}
+			
 			//累计确认，维护全局acknum 
 			acknum = stoi(to_dec(p.seq)) + stoi(to_dec(p.len));
 
-			if(state==1){
-				cout << "接收的消息："<<p.data<<"\n";//p.print();
-			}
+//			if(state==1){
+//				cout << "receive接收的消息："<<p.data<<"\n";//p.print();
+//			}
 			
 			
 		}
@@ -180,8 +181,12 @@ void recv_manager()
 		if (check_lose(p) && p.flag[ACK_GROUP] == '0' + t)
 		{
 			if(t){
-				cout<<"消息成功接收!!\n";
 				recv_data += p.data;
+				if(p.flag[SEQ_GROUP]=='0')
+				{
+					cout<<"接收到消息: "<<recv_data<<"\n";
+					recv_data="";
+				} 
 			}
 			rdt_send("", t);
 			t ^= 1;
