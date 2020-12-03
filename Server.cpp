@@ -87,7 +87,6 @@ void connect()
 	state=1;
 }
 
-
 void disconnect()
 {
 	state=2;
@@ -141,7 +140,10 @@ void* receive(void* args)
 			//累计确认，维护全局acknum 
 			acknum = stoi(to_dec(p.seq)) + stoi(to_dec(p.len));
 
-			if(state==1)cout << "接收的消息："<<string(recvData)<<"\n";
+			if(state==1){
+				cout << "接收的消息："<<p.data<<"\n";//p.print();
+			}
+			
 			
 		}
 	}
@@ -149,6 +151,10 @@ void* receive(void* args)
 
 void rdt_send(string s, int t)
 {
+	s="状态";
+	char tmp=(t+'0');
+	string ttmp="确认成功 ";
+	s+=tmp;s+=ttmp;
 	string flag = match("");
 	flag[ACK] = '1';
 	flag[ACK_GROUP] = '0' + t;
@@ -166,19 +172,21 @@ void recv_manager()
 	int t = 0;
 	while (1)
 	{
-		if(state=2){disconnect();break;};//进入挥手状态 
+		if(state==2){disconnect();break;};//进入挥手状态 
 		while (file_que.empty());
 
 		auto& p = file_que.front(); file_que.pop();
 
 		if (check_lose(p) && p.flag[ACK_GROUP] == '0' + t)
 		{
-			recv_data += p.data;
+			if(t){
+				cout<<"消息成功接收!!\n";
+				recv_data += p.data;
+			}
 			rdt_send("", t);
-			cout << "aaaaa" << t << endl;
 			t ^= 1;
 		}
-		else
+		else 
 		{
 			rdt_send("", t ^ 1);
 		}
@@ -229,7 +237,6 @@ int main(int argc, char* argv[])
 
 	//三次握手
 	connect();
-
 
 	//处理收到的文件流 
 	recv_manager();

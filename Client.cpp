@@ -39,9 +39,12 @@ void* receive(void* args)
 			package p; decode(string(recvData), p);
 
 			//读入文件流
-			p.print();	
+			//p.print();	
 			file_que.push(p);
-			if (state == 1)cout << "接收的消息：" << string(recvData) << "\n";
+			if (state == 1){
+				cout << "接收的消息："<<p.data<<"\n"; 
+				cout << "ACKGROUP: "<<p.flag[ACK_GROUP]<<"\n";
+			}
 		}
 	}
 }
@@ -72,25 +75,27 @@ void rdt_send(string s, int t)
 
 void send(string s)
 {
-	int t = 0;
-	rdt_send(s, t);
+	rdt_send(s, 0);int cnt=0;
 	while (1)
 	{
 		while (file_que.empty());
 		package p = file_que.front(); file_que.pop();
 
-		cout << "lose: " << check_lose(p) << "\n";
-
-		cout << "ack: " << p.isACK(t) << "\n";
-		if (check_lose(p) && p.isACK(t))
+		if (check_lose(p) && p.isACK(0))
 		{
-			t ^= 1;
+			cnt++;	rdt_send("确认ACK1", 1);
+		}
+		else if (cnt && check_lose(p) && p.isACK(1))
+		{
+			cout<<"消息发送成功！！\n";
 			break;
 		}
 		else
 		{
-			rdt_send(s, t);
+			cout<<"消息发送失败，正在重新发送\n";
+			cnt=0; rdt_send(s, 0);
 		}
+		
 	}
 }
 void send_manager()
@@ -108,8 +113,7 @@ void send_manager()
 		for (int i = 0; i < groupNum; ++i)
 		{
 			string groupData;
-			if (groupNum == 1) groupData = sendData;
-			else if (i < (groupNum - 1))groupData = sendData.substr(i * max_len, max_len);
+			if (i < (groupNum - 1))groupData = sendData.substr(i * max_len, max_len);
 			else groupData = sendData.substr(i * max_len);
 
 			cout << "groupData: " << groupData << "\n";
@@ -198,10 +202,10 @@ int main(int argc, char* argv[])
 	//接受信息新开一个线程
 	pthread_t* thread = new pthread_t;
 	pthread_create(thread, NULL, receive, NULL);
-
-	//三次握手
+	
+	//三次握手 
 	connect();
-
+	
 	//每次发送信息都要走一遍状态机 
 	send_manager();
 

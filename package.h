@@ -20,27 +20,27 @@ struct package
 	
 	package(string fg, string ak, string se, string da)
 	{
-		srcPort = match(to_bin(s));
-		desPort = match(to_bin(d));
+		srcPort = match(s);
+		desPort = match(d);
 		check_sum = match("");
 		len = ceil(da.size() / 8.0);
 
 		flag = fg;
-		ackNum = match(to_bin(ak),32);
-		seq = match(to_bin(se),32);
+		ackNum = match(ak,32);
+		seq = match(se,32);
 
 		data = da;
 	}
 	package(string s, string d, string fg, string ak, string se, string da)
 	{
-		srcPort = match(to_bin(s));
-		desPort = match(to_bin(d));
+		srcPort = match(s);
+		desPort = match(d);
 		check_sum = match("");
 		len = ceil(da.size() / 8.0);
 
 		flag = fg;
-		ackNum = match(to_bin(ak),32);
-		seq = match(to_bin(se),32);
+		ackNum = match(ak,32);
+		seq = match(se,32);
 
 		data = da;
 	}
@@ -97,12 +97,12 @@ struct fakeHead {
 			ans += match(tmp,8);
 			l = r + 1;
 		}
-		return ans;
+		return match(ans,32);
 	}
 };
 
 
-fakeHead f("127.0.0.1", "127.0.0.1");;
+fakeHead f("127.0.0.1", "127.0.0.1");
 
 //计算代表长度的16位string 
 void get_len(package& p)
