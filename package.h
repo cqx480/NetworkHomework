@@ -5,7 +5,6 @@ using namespace std;
 const string s="8888";
 const string d="8888";
 
-
 struct package
 {
 	//首先是UDP的真实首部 
@@ -16,6 +15,9 @@ struct package
 	//下面是TCP新增内容 
 	string flag;//16	
 	string ackNum, seq;//32 32
+	
+	//数据包的id 
+	string packNum;//32
 	package(){}
 	
 	package(string fg, string ak, string se, string da)
@@ -28,10 +30,10 @@ struct package
 		flag = fg;
 		ackNum = match(ak,32);
 		seq = match(se,32);
-
+		packNum = match(se,32);
 		data = da;
 	}
-	package(string s, string d, string fg, string ak, string se, string da)
+	package(string s, string d, string fg, string ak, string se, string packN, string da)
 	{
 		srcPort = match(s);
 		desPort = match(d);
@@ -41,7 +43,8 @@ struct package
 		flag = fg;
 		ackNum = match(ak,32);
 		seq = match(se,32);
-
+		
+		packNum=match(packN,32);
 		data = da;
 	}
 	bool isACK(int t)
@@ -57,7 +60,13 @@ struct package
 		cout<<"data: "<<data<<"\n";
 		cout<<"flag: "<<flag<<"\n";
 		cout<<"ackNum: "<<ackNum<<"\n";
+		cout<<"packNum: "<<packNum<<"\n";
 		cout<<"seq: "<<seq<<"\n";
+	}
+	
+	int ackgroup()
+	{
+		return flag[ACK_GROUP]-'0';
 	}
 
 };
@@ -139,8 +148,6 @@ string get_twosum(string s1, string s2)
 	}
 	reverse(ans.begin(), ans.end());
 	ans = match(ans);
-	//求反码 
-	for (int i = 0; i < 16; ++i)ans[i] = '1' - ans[i] + '0';
 	return ans;
 }
 //传入计算好校验和（0)以及长度的package;
@@ -172,6 +179,10 @@ void get_sum(fakeHead f, package& p)
 		int dec_num = p.data[i];
 		ans = get_twosum(ans, match(to_string(dec_num)));
 	}
+	
+	//求反码 
+	for (int i = 0; i < 16; ++i)ans[i] = '1' - ans[i] + '0';
+	
 	p.check_sum = ans;
 }
 //伪首部只是用来计算校验和，并不打包进package 
@@ -186,13 +197,14 @@ string encode(package& p)
 	ans += match(p.len);
 
 	//计算校验和 
-	get_sum(f, p);
+	//get_sum(f, p);
 	ans += match(p.check_sum);
 
 
 	ans += p.flag;
 	ans += p.ackNum;
 	ans += p.seq;
+	ans += p.packNum;
 	ans += p.data;
 	return ans;
 }
@@ -206,12 +218,14 @@ void decode(string s, package& p)
 	p.flag = s.substr(64, 16);
 	p.ackNum = s.substr(80, 32);
 	p.seq = s.substr(112, 32);
-	p.data = s.substr(144);
+	p.packNum = s.substr(144, 32);
+	p.data = s.substr(176);
 }
 
 //通过校验和判断是否有数据丢失 
 bool check_lose(package p)
 {
+	return 1;
 	//保存旧的校验和 
 	f.len=p.len;
 	string olds = p.check_sum;

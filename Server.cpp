@@ -8,18 +8,43 @@
 
 using namespace std;
 
-const double max_len = 8;//数据包最大长度 
+//数据部分最大长度
+const int max_len = (1e4)-1000; 
+
+//整个数据包的最大长度 
+const int N=1e4;
 
 #pragma comment(lib, "ws2_32.lib") 
 
+//待发送的数据 
 string sendData;
+
+//socket 
 sockaddr_in remoteAddr;
 int nAddrLen;
 SOCKET serSocket;
-bool q;
-int seqnum, acknum,state;
-string ack = match("", 32), seq = match("", 32);
+
+//pic=1代表当前正在接收一个文件，接下来要将文件存入本地 
+bool pic;
+
+//state代表当前所处状态（0：握手阶段   1：数据发送阶段   2：挥手阶段） 
+int state;
+
+//全局序列号和累计确认序列号 
+string ack = match("", 32), seq = match("", 32),packNum = match("", 32);
+int seqnum, acknum;
+
+//接收缓冲区  
 queue<package> file_que;
+
+//接收字符流 
+char recvData[N];
+
+//用于判断接下来是否输入一个文件 
+set<string> pic_set;
+
+//用于计时 
+clock_t start,finish;
 
 
 //维护全局ack和seq
@@ -29,39 +54,19 @@ void maintain_as()
 	seq = match(to_bin(to_string(seqnum)), 32);
 }
 
-
-string recv_data="";
-void save_pic()
-{
-	char c;
-	auto& ori = recv_data;
-	ofstream of("_1.jpg", ios::binary);
-	for (int i = 0; i < ori.size(); i += 8)
-	{
-		c = 0;
-		for (int j = 0; j < 8; ++j)
-		{
-			int cur = ori[i + j] - '0';
-			c |= (cur << j);
-		}
-		of.write(&c, 1);
-	}
-}
-
 //握手阶段seqnum每次加一 
 void _rdt_send(string flag)
 {
-	//cout<<flag[FIN]<<endl;
 	string s="";
 
 	seqnum += 1;
 	maintain_as();
 
-	package p("8888", "8888", flag, ack, seq, s);
+	package p("8888", "8888", flag, ack, seq,packNum , s);
 	//p.print();
 	string sdata = encode( p);
 	
-	sendto(serSocket, sdata.c_str(), 1024, 0, (sockaddr*)&remoteAddr, nAddrLen);
+	sendto(serSocket, sdata.c_str(), sdata.size(), 0, (sockaddr*)&remoteAddr, nAddrLen);
 }
 
 void connect()
@@ -118,14 +123,13 @@ void disconnect()
 	WSACleanup();
 	exit(0);
 } 
-
+//int nnum; 
 void* receive(void* args)
 {
 	nAddrLen = sizeof(remoteAddr);
 	while (true)
 	{
-		char recvData[1024];
-		int ret = recvfrom(serSocket, recvData, 1024, 0, (sockaddr*)&remoteAddr, &nAddrLen);
+		int ret = recvfrom(serSocket, recvData, N, 0, (sockaddr*)&remoteAddr, &nAddrLen);
 		if (ret > 0)
 		{
 			package p; decode(string(recvData), p);
@@ -138,71 +142,100 @@ void* receive(void* args)
 				state=2;
 			}
 			
-			//累计确认，维护全局acknum 
-			acknum = stoi(to_dec(p.seq)) + stoi(to_dec(p.len));
-
+//			//累计确认，维护全局acknum 
+//			acknum = stoi(to_dec(p.seq)) + stoi(to_dec(p.len));
+			
+//			if(state==1)cout<<"收到一条消息"<<nnum++<<"\n"; 
 //			if(state==1){
-//				cout << "receive接收的消息："<<p.data<<"\n";//p.print();
+//				cout << "receive接收的消息："<<p.data<<endl;//p.print();
 //			}
-			
-			
+			memset(recvData,0,sizeof(recvData))	;	
 		}
 	}
 }
 
-void rdt_send(string s, int t)
+void rdt_send(string s, string seq,string packNum)
 {
-	s="状态";
-	char tmp=(t+'0');
-	string ttmp="确认成功 ";
-	s+=tmp;s+=ttmp;
+	s="";
 	string flag = match("");
 	flag[ACK] = '1';
-	flag[ACK_GROUP] = '0' + t;
-
-	seqnum += s.size() / 8;
-	maintain_as();
-
-	package p("8888", "8888", flag, ack, seq, s);
+	
+	string ack=seq;
+	
+	package p("8888", "8888", flag, ack, seq, packNum,s);
 	string sdata = encode( p);
-	sendto(serSocket, sdata.c_str(),1024, 0, (sockaddr*)&remoteAddr, nAddrLen);
+	sendto(serSocket, sdata.c_str(),sdata.size(), 0, (sockaddr*)&remoteAddr, nAddrLen);
 }
 
+string recv_data="";
+string file_name;
+void save_pic()
+{
+	//cout<<"saveaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n";
+	//cout<<"recv:"<<recv_data.size()<<"\n";
+	char c;
+	auto& ori = recv_data;
+	string save_addr = "test\\out" + file_name;
+	cout<<file_name<<endl;
+	ofstream of(save_addr, ios::binary);
+	for (int i = 0; i < ori.size(); i += 8)
+	{
+		c = 0;
+		for (int j = 0; j < 8; ++j)
+		{
+			int cur = ori[i + j] - '0';
+			c |= (cur << j);
+		}
+		of.write(&c, 1);
+	}
+}
 void recv_manager()
 {
-	int t = 0;
-	while (1)
+	while(1)
 	{
-		if(state==2){disconnect();break;};//进入挥手状态 
-		while (file_que.empty());
-
-		auto& p = file_que.front(); file_que.pop();
-
-		if (check_lose(p) && p.flag[ACK_GROUP] == '0' + t)
+		if(state==2){disconnect();break;}//进入挥手状态 
+		
+		while(!file_que.empty())
 		{
-			if(t){
-				recv_data += p.data;
-				if(p.flag[SEQ_GROUP]=='0')
+			package p=file_que.front();file_que.pop();
+			if(check_lose(p))
+			{
+				//recv_data+=p.data;乱序到达的数据包要按照seq进行重新组合 
+				//cout<<"接收到一条消息, p.packNum: "<<to_dec(p.packNum)<<"\n";
+				rdt_send("",p.seq,p.packNum);
+				recv_data+=p.data;
+				if(pic_set.count(p.data)){
+					pic=1;
+					recv_data=file_name=p.data;
+					start=clock(); 
+				}
+				if(p.flag[END]=='1')
 				{
-					cout<<"接收到消息: "<<recv_data<<"\n";
+					if(pic&&!pic_set.count(p.data))
+					{
+						save_pic();
+						finish=clock();
+						cout<<"传输用时: "<<finish-start<<"\n";
+						pic=0;
+					}
+					else cout<<"接收的消息："<<recv_data<<"\n";
+					cout<<"recv_data.size(): "<<recv_data.size()<<"\n";
 					recv_data="";
-				} 
+					break;
+				}
+				
 			}
-			rdt_send("", t);
-			t ^= 1;
-		}
-		else 
-		{
-			rdt_send("", t ^ 1);
+			else
+			{
+				rdt_send("",p.ackNum,p.packNum);
+			}
 		}
 	}
-
-	cout << recv_data.size() << endl;
-	save_pic();
 
 }
 bool init()
 {
+	
 	WSADATA wsaData;
 	WORD sockVersion = MAKEWORD(2, 2);
 	if (WSAStartup(sockVersion, &wsaData) != 0)
@@ -228,12 +261,12 @@ bool init()
 		closesocket(serSocket);
 		return 0;
 	}
+	
+	pic_set.insert("1.jpg");pic_set.insert("2.jpg");pic_set.insert("3.jpg");pic_set.insert("1.txt");
 	return 1;
 }
 int main(int argc, char* argv[])
 {
-	//freopen("D:\\Desktop\\计网作业\\作业三\\NetworkHomework\\server_out.txt","w",stdout); 
-
 	if (!init())return 0;
 
 	//接受信息要新开一个线程
@@ -245,8 +278,9 @@ int main(int argc, char* argv[])
 
 	//处理收到的文件流 
 	recv_manager();
-
+	system("pause");
 	closesocket(serSocket);
 	WSACleanup();
+	
 	return 0;
 }
