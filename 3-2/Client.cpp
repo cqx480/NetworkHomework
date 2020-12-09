@@ -52,6 +52,8 @@ set<string>pic_set;
 //用于计时 
 clock_t start[maxn];
 
+int groupNum;
+
 void timeout_handler();
 
 struct simple_packet{
@@ -118,10 +120,7 @@ void* receive(void* args)
 			//读入文件流
 			//p.print();	
 			file_que.push(p);
-			if (state == 1){
-//				cout << "接收的消息："<<p.data<<"\n"; 
-//				cout << "ACKGROUP: "<<p.flag[ACK_GROUP]<<"\n";
-			}
+			
 		}
 	}
 }
@@ -162,7 +161,6 @@ void rdt_send(string s, string seq,string packNum, bool end)
 
 void rdt_send(simple_packet p)
 {
-	//cout<<"发送一条消息\n";
 	rdt_send(p.data,p.seq,p.packNum,p.end);
 }
 
@@ -175,10 +173,13 @@ void* recv_manager(void* args)
 		package p=file_que.front();file_que.pop();
 		
 		int cur_ack=stoi(to_dec(p.ackNum)),cur_packnum=stoi(to_dec(p.packNum));	
+		cout<<cur_packnum<<"\n";
 		if(check_lose(p))
 		{
-			ack_state[cur_packnum]=1;
-			valid[cur_packnum]=0;
+			for(int i=0;i<5;++i){
+				ack_state[cur_packnum+i]=1;			
+				valid[cur_packnum+i]=0;
+			}
 			maintain_sb();
 		}
 		else //差错重传
@@ -194,13 +195,14 @@ void* timeout_handler(void* args)
 {
 	while(1)
 	{
+		Sleep(500);
 		for(int i=0;i<maxn;++i)
 		{	
 			//没有这个package或者没有接受 
+			Sleep(100);
 			if(!valid[i]||ack_state[i])continue;
 			
-			int cur_pckn=unrecv[i].packNum;
-			
+			int cur_pckn=unrecv[i].packNum;		
 			clock_t cur_time=clock(); 
 			
 			//超时重传 			
@@ -222,7 +224,7 @@ void* timeout_handler(void* args)
 void send()
 {
 	//先分组 
-	int groupNum = (sendData.size()+max_len-1)/max_len;
+	groupNum = (sendData.size()+max_len-1)/max_len;
 	vector<string> groupData;
 	for (int i = 0; i < groupNum; ++i)
 	{

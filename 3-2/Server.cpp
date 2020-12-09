@@ -203,7 +203,10 @@ void recv_manager()
 			package p=file_que.front();file_que.pop();
 			if(check_lose(p))
 			{
-				rdt_send("",p.seq,p.packNum);
+				//累计确认 
+				int pn=stoi(to_dec(p.packNum));
+				if((pn%5)==0)rdt_send("",p.seq,p.packNum);
+				
 				recv_data+=p.data;
 				if(pic_set.count(p.data)){
 					pic=1;
@@ -216,7 +219,11 @@ void recv_manager()
 					{
 						save_pic();
 						finish=clock();
-						cout<<"传输用时: "<<finish-start<<"\n";
+						cout<<"传输用时: "<<finish-start<<endl;
+						double sec=(finish-start)/1000.0;
+						double mb=recv_data.size()/(8.0*1024*1024);
+						double v=mb/sec;
+						cout<<"吞吐率："<< v<<"MB/s\n";
 						pic=0;
 					}
 					else cout<<"接收的消息："<<recv_data<<"\n";
