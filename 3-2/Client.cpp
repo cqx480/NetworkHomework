@@ -172,14 +172,14 @@ void* recv_manager(void* args)
 		while(file_que.empty());
 		package p=file_que.front();file_que.pop();
 		
-		int cur_ack=stoi(to_dec(p.ackNum)),cur_packnum=stoi(to_dec(p.packNum));	
-		cout<<cur_packnum<<"\n";
+		int cur_ack=stoi(to_dec(p.ackNum)),nxt_packnum=stoi(to_dec(p.packNum));	
+
 		if(check_lose(p))
 		{
-			for(int i=0;i<5;++i){
-				ack_state[cur_packnum+i]=1;			
-				valid[cur_packnum+i]=0;
-			}
+			for(int i=sendbase;i<nxt_packnum;++i){
+				ack_state[i]=1;			
+				valid[i]=0;
+			}			
 			maintain_sb();
 		}
 		else //差错重传
@@ -329,12 +329,14 @@ void connect()
 void disconnect()
 {
 	state = 2;
+	
 	Sleep(500);
 	//第一次挥手(FIN=1，seq=x)            c->s
 	string flag = match(""); flag[FIN] = '1';
 	_rdt_send(flag); 
 	cout << "第一次挥手发送成功\n";
-
+	
+	
 	//第二次挥手(ACK=1，ACKnum=x+1)       s->c
 	while (file_que.empty());
 	package p = file_que.front(); file_que.pop(); 
@@ -348,7 +350,8 @@ void disconnect()
 	p.print();	
 	assert(p.flag[FIN] == '1');
 	cout << "第三次挥手成功接收\n";
-
+	
+	Sleep(500);	
 	//第四次挥手(ACK=1，ACKnum=y+1)       c->s
 	flag[ACK] = '1'; _rdt_send(flag);
 	cout << "第四次挥手发送成功\n";

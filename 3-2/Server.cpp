@@ -14,6 +14,8 @@ const int max_len = (1e4)-1000;
 //整个数据包的最大长度 
 const int N=1e4;
 
+const int maxn=1e5+10;
+
 #pragma comment(lib, "ws2_32.lib") 
 
 //待发送的数据 
@@ -46,6 +48,9 @@ set<string> pic_set;
 //用于计时 
 clock_t start,finish;
 
+int recvbase; 
+
+int recv_state[maxn];
 
 //维护全局ack和seq
 void maintain_as()
@@ -101,13 +106,14 @@ void disconnect()
 	p.print();
 	assert(p.flag[FIN] == '1');
 	cout <<"第一次挥手成功接收\n";	
-		
+	
+	Sleep(500);	
 	//第二次挥手(ACK=1，ACKnum=x+1)       s->c
 	string flag=match("");flag[ACK]='1';
 	_rdt_send(flag);
 	cout<<"第二次挥手发送成功\n";
 	
-	
+	Sleep(500);	
 	//第三次挥手(FIN=1，seq=y)            s->c 
 	flag[FIN]='1';
 	_rdt_send(flag);
@@ -174,6 +180,11 @@ void rdt_send(string s, string seq,string packNum)
 
 string recv_data="";
 string file_name;
+void maintain_rb()
+{
+	while(recv_state[recvbase])recvbase++;
+}
+
 void save_pic()
 {
 	char c;
@@ -203,9 +214,10 @@ void recv_manager()
 			package p=file_que.front();file_que.pop();
 			if(check_lose(p))
 			{
-				//累计确认 
-				int pn=stoi(to_dec(p.packNum));
-				if((pn%5)==0)rdt_send("",p.seq,p.packNum);
+				maintain_rb();
+				string nxt_seq=match(to_bin(to_string(recvbase+1)),32);
+				//rdt_send("",p.seq,p.packNum);
+				rdt_send("",nxt_seq,p.packNum);
 				
 				recv_data+=p.data;
 				if(pic_set.count(p.data)){
