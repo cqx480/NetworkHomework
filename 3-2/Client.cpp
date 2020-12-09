@@ -115,12 +115,9 @@ void* receive(void* args)
 		int ret = recvfrom(sclient, recvData, N, 0, (sockaddr*)&ssin, &len);
 		if (ret > 0)
 		{
-			package p; decode(string(recvData), p);
-
-			//读入文件流
-			//p.print();	
+			package p; decode(string(recvData), p);	
 			file_que.push(p);
-			
+			memset(recvData,0,sizeof(recvData));
 		}
 	}
 }
@@ -169,9 +166,11 @@ void* recv_manager(void* args)
 	while(1)
 	{		
 		if(state!=1)continue;
-		while(file_que.empty());
-		package p=file_que.front();file_que.pop();
 		
+		while(state!=1||file_que.empty());
+		
+		package p=file_que.front();file_que.pop();
+
 		int cur_ack=stoi(to_dec(p.ackNum)),nxt_packnum=stoi(to_dec(p.packNum));	
 
 		if(check_lose(p))
@@ -231,7 +230,8 @@ void send()
 		if (i < (groupNum - 1))groupData.push_back(sendData.substr(i * max_len, max_len));
 		else groupData.push_back(sendData.substr(i * max_len));
 	}
-				
+	
+	cout<<"groupNum: "<<groupNum<<"\n";			
 	//下面开始发送,根据sendbase和win_size确定可以发送的数据包的下标范围 
 	int cur_packnum=sendbase,cnt=0;
 	int old_sendbase=sendbase;
@@ -291,6 +291,7 @@ void send_manager()
 		//检查断开连接 
 		if (sendData == "q")
 		{
+			state=2;
 			break;
 		}
 		
@@ -328,8 +329,7 @@ void connect()
 //四次挥手 
 void disconnect()
 {
-	state = 2;
-	
+	state = 2;	
 	Sleep(500);
 	//第一次挥手(FIN=1，seq=x)            c->s
 	string flag = match(""); flag[FIN] = '1';

@@ -107,19 +107,20 @@ void disconnect()
 	assert(p.flag[FIN] == '1');
 	cout <<"第一次挥手成功接收\n";	
 	
-	Sleep(500);	
+	Sleep(50);	
 	//第二次挥手(ACK=1，ACKnum=x+1)       s->c
-	string flag=match("");flag[ACK]='1';
+	string flag=match("");
+	flag[ACK]='1';
 	_rdt_send(flag);
 	cout<<"第二次挥手发送成功\n";
 	
-	Sleep(500);	
+	Sleep(50);	
 	//第三次挥手(FIN=1，seq=y)            s->c 
 	flag[FIN]='1';
 	_rdt_send(flag);
 	cout<<"第三次挥手发送成功\n";
 	
-	Sleep(500);
+	Sleep(50);
 	//第四次挥手(ACK=1，ACKnum=y+1)       c->s
 	while (file_que.empty());
 	p = file_que.front(); file_que.pop();
@@ -144,22 +145,6 @@ void* receive(void* args)
 			package p; decode(string(recvData), p);
 			
 			file_que.push(p);
-
-			//接收到挥手信号,进入disconnect函数
-			if (p.flag[FIN] == '1')
-			{				
-				state=2;
-				disconnect();
-				break;
-			}
-			
-//			//累计确认，维护全局acknum 
-//			acknum = stoi(to_dec(p.seq)) + stoi(to_dec(p.len));
-			
-//			if(state==1)cout<<"收到一条消息"<<nnum++<<"\n"; 
-//			if(state==1){
-//				cout << "receive接收的消息："<<p.data<<endl;//p.print();
-//			}
 			memset(recvData,0,sizeof(recvData))	;	
 		}
 	}
@@ -206,17 +191,24 @@ void save_pic()
 void recv_manager()
 {
 	while(1)
-	{
+	{		
 		if(state==2){continue;}//进入挥手状态 
 		
-		while(!file_que.empty())
+		while(state==1&&!file_que.empty())
 		{
-			package p=file_que.front();file_que.pop();
+			package p=file_que.front();
+			//接收到挥手信号,进入disconnect函数
+			if (p.flag[FIN] == '1')
+			{				
+				state=2;
+				disconnect();
+				break;
+			}
+			file_que.pop();
 			if(check_lose(p))
 			{
 				maintain_rb();
 				string nxt_seq=match(to_bin(to_string(recvbase+1)),32);
-				//rdt_send("",p.seq,p.packNum);
 				rdt_send("",nxt_seq,p.packNum);
 				
 				recv_data+=p.data;
