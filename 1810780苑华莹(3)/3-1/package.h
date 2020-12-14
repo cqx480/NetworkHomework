@@ -176,7 +176,7 @@ void get_sum(fakeHead f, package& p)
 	unsigned short int cur_ans=0;
 	for(int i=0;i<p.data.size()/2;++i)
 	{
-		cur_ans+=data[i];//自然溢出 
+		cur_ans+=data[i];//自然溢出
 	}
 	
 	string data_sum=match(to_string(cur_ans));
