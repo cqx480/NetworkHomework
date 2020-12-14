@@ -8,6 +8,8 @@
 using namespace std;
 #pragma comment(lib, "ws2_32.lib") 
 
+#define MSS max_len
+
 //数据部分最大长度
 const int max_len = (1e4)-1000; 
 
@@ -95,9 +97,11 @@ node unrecv[maxn];
 //已经收到的连续ack的最大值 
 int sendbase;
 
-//窗口大小为10 
-const int win_size=10;
+//初始窗口大小为1
+int win_size=1;
 
+//重复ack个数 
+int dupACKcount;
 
 //维护全局ack和seq
 void maintain_as()
@@ -121,9 +125,13 @@ void* receive(void* args)
 	}
 }
 
+//采用慢启动拥塞控制算法，初始win_size=1
+//窗口大小的阈值设置为100 ,cur代表慢启动阶段的交互次数 
+int ssthresh=100,cur=1,base=1;
+
 void maintain_sb()
 {
-	while(ack_state[sendbase])sendbase++;
+	while(ack_state[sendbase]){sendbase++;	}
 }
 
 //握手阶段seqnum每次加一 
@@ -160,6 +168,51 @@ void rdt_send(simple_packet p)
 	rdt_send(p.data,p.seq,p.packNum,p.end);
 }
 
+int reno_state;//0代表慢启动，1代表拥塞控制，2代表快速恢复 
+
+void reno_FSM(int nxt_packnum)
+{
+	//全局acknum 			
+	//dup ACK
+	if(acknum == nxt_packnum){
+		if(reno_state==0||reno_state==1)
+		{
+			dupACKcount++;
+			if(dupACKcount==3)
+			{
+				ssthresh= win_size/2;
+				win_size = ssthresh + 3;
+				reno_state=2;//状态机状态由 "慢启动"或"拥塞控制" 变 "快速恢复" 
+			}
+		}
+		else if(reno_state==2)
+		{
+			win_size++;
+		}
+	}
+	else //new ack
+	{
+		acknum = nxt_packnum;
+		if(reno_state==0)
+		{
+			reno_state=1; //状态机状态由"慢启动"变"拥塞避免" 
+			acknum = nxt_packnum;
+			dupACKcount=0;
+			if(win_size<ssthresh)win_size++;
+		}
+		else if(reno_state==1)
+		{
+			win_size = win_size + (MSS/win_size);//由于win_size本身就表示数据包的序号而不是字节的序号，因此不需要再乘以MSS 
+			dupACKcount = 0 ;
+		}
+		else if(reno_state==2)
+		{
+			reno_state=1; //状态机状态由"慢启动"变"拥塞避免" 
+			win_size = ssthresh;
+			dupACKcount = 0 ;
+		}
+	}
+}
 void* recv_manager(void* args)
 {			
 	while(1)
@@ -170,15 +223,17 @@ void* recv_manager(void* args)
 		
 		package p=file_que.front();file_que.pop();
 
-		int cur_ack=stoi(to_dec(p.ackNum)),nxt_packnum=stoi(to_dec(p.packNum));	
+		int cur_ack=stoi(to_dec(p.ackNum)),nxt_packnum=stoi(to_dec(p.seq));	
 
 		if(check_lose(p))
 		{
-			for(int i=sendbase;i<nxt_packnum;++i){
-				ack_state[i]=1;			
-				valid[i]=0;
-			}			
-			maintain_sb();
+			int pid=stoi(to_dec(p.packNum));
+			//cout<<"pid: "<<pid<<"\n";				
+			ack_state[pid]=1;	
+			valid[pid]=0;			
+			maintain_sb();			
+			//维护状态机
+			reno_FSM(nxt_packnum);		
 		}
 		else //差错重传
 		{
@@ -190,6 +245,7 @@ void* recv_manager(void* args)
 
 
 //处理超时的线程 
+//拥塞控制部分加入了相应状态转移函数 
 void* timeout_handler(void* args)
 {
 	while(1)
@@ -204,15 +260,21 @@ void* timeout_handler(void* args)
 			int cur_pckn=unrecv[i].packNum;		
 			clock_t cur_time=clock(); 
 			
-			//超时重传 			
-			if((cur_time-unrecv[i].start)>1000)
+			//超时重传 	
+			
+			if((cur_time-unrecv[i].start)>100)
 			{	
-				cout<<"序号： "<<i<<"\n";
 				cout<<"超时packnum: "<<unrecv[i].packNum<<"\n";
 				cout<<"当前时间： "<<cur_time<<"\n";
 				cout<<"pack start time: "<< unrecv[i].start<<"\n";
 				unrecv[i].start=clock();		
 				rdt_send(unrecv[i].pack);
+				
+				//超时状态转移	
+				reno_state=0;
+				ssthresh = win_size/2; 
+				win_size = 1; 
+				dupACKcount = 0;				
 			}
 		}	
 	} 
@@ -220,8 +282,11 @@ void* timeout_handler(void* args)
 }
 
 
+
+
+ 
 void send()
-{
+{	 
 	//先分组 
 	groupNum = (sendData.size()+max_len-1)/max_len;
 	vector<string> groupData;
@@ -231,31 +296,37 @@ void send()
 		else groupData.push_back(sendData.substr(i * max_len));
 	}
 	
-	cout<<"groupNum: "<<groupNum<<"\n";			
+	cout<<"groupNum: "<<groupNum<<"\n";	
+				
 	//下面开始发送,根据sendbase和win_size确定可以发送的数据包的下标范围 
-	int cur_packnum=sendbase,cnt=0;
-	int old_sendbase=sendbase;
+	int cur_packnum=sendbase,cnt=0,old_sendbase=sendbase;
+	//窗口初始大小为 1 
+	win_size=1;
+
 	while(cur_packnum<old_sendbase+groupNum)
 	{
 		while(cur_packnum<(sendbase+win_size)&&cur_packnum<(old_sendbase+groupNum)) 
 		{
+			
 			int cur_seqnum = seqnum + cnt * max_len;
 			
+			//初始化一些相关参数 
 			string seq = match(to_bin(to_string(cur_seqnum)), 32);			
 			string curpackNum= match(to_bin(to_string(cur_packnum)), 32);			
-			bool end=(cnt==(groupNum-1));			
-					
+			bool end=(cnt==(groupNum-1));								
 			simple_packet sp(groupData[cnt],seq,curpackNum,end);
-			
 			node no(cur_packnum,clock(),sp);
-			ack_state[cur_packnum]=0;
-			valid[cur_packnum]=1;
 			
+			//当前数据包设置成未收到模式 
+			ack_state[cur_packnum]=0;
+			valid[cur_packnum]=1;			
 			unrecv[cur_packnum]=no;
-					
+			
+			//发送数据包		
 			rdt_send(sp);
-						
+			//cout<<"cur_packnum: "<<cur_packnum<<"\n";			
 			cnt++;cur_packnum++;
+			
 		}
 	}
 	

@@ -143,7 +143,7 @@ void* receive(void* args)
 		if (ret > 0)
 		{
 			package p; decode(string(recvData), p);
-			
+			//cout<<"成功接收一条消息\n"; 
 			file_que.push(p);
 			memset(recvData,0,sizeof(recvData))	;	
 		}
@@ -152,6 +152,8 @@ void* receive(void* args)
 
 void rdt_send(string s, string seq,string packNum)
 {
+	//cout<<"成功发送一条消息\n"; 
+	
 	s="";
 	string flag = match("");
 	flag[ACK] = '1';
@@ -207,10 +209,14 @@ void recv_manager()
 			file_que.pop();
 			if(check_lose(p))
 			{
+				int pid=stoi(to_dec(p.packNum));
+			//	cout<<"pid: "<<pid<<"\n";				
+				recv_state[pid]=1;	
+					
 				maintain_rb();
 				string nxt_seq=match(to_bin(to_string(recvbase+1)),32);
 				rdt_send("",nxt_seq,p.packNum);
-				//cout<<to_dec(p.packNum)<<endl;
+				//cout<<"nxt_seq: "<<to_dec(nxt_seq)<<endl;
 				
 				recv_data+=p.data;
 				if(pic_set.count(p.data)){
@@ -240,6 +246,7 @@ void recv_manager()
 			}
 			else
 			{
+				cout<<"发生差错！\n"; 
 				rdt_send("",p.ackNum,p.packNum);
 			}
 		}

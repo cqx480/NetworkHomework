@@ -184,7 +184,6 @@ void get_sum(fakeHead f, package& p)
 	for(int i=0;i<p.data.size()/2;++i)
 	{
 		cur_ans+=data[i];
-		//while(cur_ans>=(1<<16))cur_ans>>=1;
 	}
 	
 	string data_sum=match(to_string(cur_ans));
