@@ -5,6 +5,7 @@
 
 #include "common.h"
 #include "package.h"
+//#include "ThreadSafeQueue.h"
 
 using namespace std;
 
@@ -46,6 +47,9 @@ set<string> pic_set;
 
 //用于计时 
 clock_t start,finish;
+
+//丢包率：每mod个数据包丢一个数据包 
+int mod=10;
 
 int recvbase; 
 
@@ -122,6 +126,7 @@ void disconnect()
 	exit(0);
 } 
 
+int cnt;
 void* receive(void* args)
 {
 	nAddrLen = sizeof(remoteAddr);
@@ -132,6 +137,12 @@ void* receive(void* args)
 		{
 			package p; decode(string(recvData), p);
 			//cout<<"成功接收一条消息\n"; 
+			
+			//每mod个包就丢一个 
+//			if((cnt++)%mod==5){
+//				cout<<"丢弃数据包 "<< to_dec(p.packNum)<<"\n";
+//				continue;	
+//			}		
 			file_que.push(p);
 			memset(recvData,0,sizeof(recvData))	;	
 		}
@@ -140,8 +151,7 @@ void* receive(void* args)
 
 void rdt_send(string s, string packNum)
 {
-	//cout<<"成功发送一条消息,packNum"<<to_dec(packNum)<<"\n"; 
-	
+	//cout<<"==============================成功发送一条消息,packNum"<<to_dec(packNum)<<"\n"; 	
 	s="";
 	string flag = match("");
 	flag[ACK] = '1';
@@ -266,7 +276,7 @@ bool init()
 	sockaddr_in serAddr;
 	serAddr.sin_family = AF_INET;
 	serAddr.sin_port = htons(8888);
-	serAddr.sin_addr.S_un.S_addr = INADDR_ANY;
+	serAddr.sin_addr.S_un.S_addr = INADDR_ANY;//inet_addr("10.134.146.124");//INADDR_ANY;//inet_addr("127.0.0.1");
 
 	if (bind(serSocket, (sockaddr*)&serAddr, sizeof(serAddr)) == SOCKET_ERROR)
 	{

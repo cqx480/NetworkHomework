@@ -4,6 +4,9 @@
 
 #include "common.h"
 #include "package.h"
+#include "unrecv.cpp"
+
+//#include "ThreadSafeQueue.h"
 
 using namespace std;
 #pragma comment(lib, "ws2_32.lib") 
@@ -54,36 +57,6 @@ int groupNum;
 
 void timeout_handler();
 
-struct simple_packet{
-	string data;
-	string packNum;
-	bool end;
-	simple_packet(){}
-	simple_packet(string d,string p,bool e){
-		data=d;
-		packNum=p;
-		end=e;
-	}
-};
-
-struct node{
-	int packNum;
-	clock_t start;
-	simple_packet* pack;
-	node(){pack=NULL;}
-	node(int a,clock_t c,simple_packet* p):packNum(a),start(c),pack(p){} 
-	
-	void print()
-	{		
-		cout<<"start: "<<start<<"\n";
-		cout<<"pack.data: "<<pack->data<<"\n";
-		cout<<"pack.packNum: " <<pack->packNum<<"\n";
-		cout<<"pack.end: "<<pack->end<<"\n";		 
-	}
-};
-
-//当前窗口未确认的packnum和相关信息 
-node* unrecv[maxn];
 
 
 //已经收到的连续ack的最大值 
@@ -137,7 +110,7 @@ void rdt_send(string s, string packNum, bool end)
 {
 	string flag = match("");	
 	 
-	//cout<<"发送数据包，packNum: "<< to_dec(packNum)<<"\n"; 
+	cout<<"发送数据包，packNum: "<< to_dec(packNum)<<"\n"; 
 	//最后一组要加标志位 
 	if(end)flag[END]='1';
 
@@ -146,9 +119,9 @@ void rdt_send(string s, string packNum, bool end)
 	sendto(sclient, sdata.c_str(), sdata.size(), 0, (sockaddr*)&ssin, len);
 }
 
-void rdt_send(simple_packet* p)
+void rdt_send(simple_packet p)
 {
-	rdt_send(p->data,p->packNum,p->end);
+	rdt_send(p.data,p.packNum,p.end);
 }
 
 int reno_state;//0代表慢启动，1代表拥塞控制，2代表快速恢复 
@@ -203,17 +176,22 @@ void* recv_manager(void* args)
 		if(state!=1)continue;
 		
 		while(state!=1||file_que.empty());
+		package p=file_que.front();
+		file_que.pop();
 		
-		package p=file_que.front();file_que.pop();
-
 		int nxt_packnum=stoi(to_dec(p.packNum));	
 
 		if(check_lose(p))
 		{
 			int pid=stoi(to_dec(p.packNum));
-			//cout<<"接收到消息 pid: "<<pid<<"\n";				
-			ack_state[pid]=1;	
-			valid[pid]=0;			
+//			cout<<"sendbase: "<<sendbase;
+//			cout<<"   win_size: "<<win_size<<"\n"; 
+//			cout<<"接收数据包: "<<pid<<"\n";
+			for(int i=sendbase;i<=pid;++i)	
+			{
+				ack_state[i]=1;	
+				valid[i]=0;				
+			}						
 			maintain_sb();			
 			//维护状态机
 			reno_FSM(nxt_packnum);		
@@ -235,25 +213,24 @@ void* timeout_handler(void* args)
 	{
 		Sleep(1000);
 		for(int i=sendbase;i<sendbase+win_size;++i)
-		{	
-			//没有这个package或者没有接受 
-			//Sleep(100);			
+		{			
 			if(!valid[i]||ack_state[i])continue;
 			
 			int id=i%1001;
-			int cur_pckn=unrecv[id]->packNum;		
+			int cur_pckn=unrecv[id].packNum;		
 			clock_t cur_time=clock(); 
 			
+			//cout<<"aaaaaaaaaaaaaa unrecv["<<id<<"].packNum="<<cur_pckn<<"\n";
+			
 			//超时重传 				
-			if((cur_time-unrecv[id]->start)>50)
-			{	
-				cout<<"==================================\n";
-				cout<<sendbase<<" "<<win_size<<"\n";
-				cout<<"超时packnum: "<<unrecv[id]->packNum<<"\n";
-				cout<<"当前时间： "<<cur_time<<"\n";
-				cout<<"pack start time: "<< unrecv[id]->start<<"\n";
-				unrecv[id]->start=clock();		
-				rdt_send(unrecv[id]->pack);
+			if((cur_time-unrecv[id].start)>50)
+			{		
+//				cout<<"=======================\n";			
+//				cout<<sendbase<<" "<<win_size<<"\n";
+//				cout<<"超时packnum: "<<cur_pckn<<"\n";
+//				cout<<"id: "<<id<<"\n";
+				unrecv[id].start=clock();		
+				rdt_send(unrecv[id].pack);
 				
 				//超时状态转移	
 				reno_state=0;
@@ -266,10 +243,12 @@ void* timeout_handler(void* args)
 	
 }
 
+node no;
+simple_packet sp;
+
 void send()
 {
-	node* no=new node();
-	simple_packet* sp=new simple_packet();	 
+	
 	//先分组 
 	groupNum = (sendData.size()+max_len-1)/max_len;
 	vector<string> groupData;
@@ -292,17 +271,18 @@ void send()
 		{			
 			//初始化一些相关参数 		
 				
-			sp->end=(cnt==(groupNum-1));	sp->data=groupData[cnt]; 
-			sp->packNum=	match(to_bin(to_string(cur_packnum)), 32);
-			no->start=clock(); no->packNum= cur_packnum;	
-			no->pack=sp;
+			sp.end=(cnt==(groupNum-1));	sp.data=groupData[cnt]; 
+			sp.packNum=match(to_bin(to_string(cur_packnum)), 32);
+			no.start=clock(); no.packNum= cur_packnum;	
+			no.pack=sp;
 			
 			int id=cur_packnum%1001;
+			
 			//当前数据包设置成未收到模式 
 			ack_state[id]=0;
 			valid[id]=1;			
 			unrecv[id]=no;
-			
+			cout<<"cccccccccccccc unrecv["<<id<<"].packNum="<<cur_packnum<<"\n";
 			//发送数据包		
 			rdt_send(sp);
 			//cout<<"cur_packnum: "<<cur_packnum<<"\n";			
@@ -384,20 +364,20 @@ void disconnect()
 {
 	state = 2;	
 	Sleep(500);
-	//第一次挥手(FIN=1，seq=x)            c->s
+	//第一次挥手(FIN=1，seq=x)            c.s
 	string flag = match(""); flag[FIN] = '1';
 	_rdt_send(flag); 
 	cout << "第一次挥手发送成功\n";
 	
 	
-	//第二次挥手(ACK=1，ACKnum=x+1)       s->c
+	//第二次挥手(ACK=1，ACKnum=x+1)       s.c
 	while (file_que.empty());
 	package p = file_que.front(); file_que.pop(); 
 	//p.print();
 	assert(p.flag[ACK] == '1');
 	cout << "第二次挥手成功接收\n";
 
-	//第三次挥手(FIN=1，seq=y)            s->c 
+	//第三次挥手(FIN=1，seq=y)            s.c 
 	while (file_que.empty());
 	p = file_que.front(); file_que.pop();
 	//p.print();	
@@ -405,7 +385,7 @@ void disconnect()
 	cout << "第三次挥手成功接收\n";
 	
 	Sleep(500);	
-	//第四次挥手(ACK=1，ACKnum=y+1)       c->s
+	//第四次挥手(ACK=1，ACKnum=y+1)       c.s
 	flag[ACK] = '1'; _rdt_send(flag);
 	cout << "第四次挥手发送成功\n";
 	exit(0);
@@ -415,6 +395,7 @@ void disconnect()
 bool init()
 {
 	state = 0;//首先要设置当前状态为握手模式 
+		 
 	pic_set.insert("1.jpg");pic_set.insert("2.jpg");pic_set.insert("3.jpg");pic_set.insert("1.txt");
 	
 	
@@ -429,14 +410,14 @@ bool init()
 	
 	ssin.sin_family = AF_INET;
 	ssin.sin_port = htons(stoi(DesPort));
-	ssin.sin_addr.S_un.S_addr = inet_addr("127.0.0.1");
+	ssin.sin_addr.S_un.S_addr = inet_addr("127.0.0.1");//inet_addr("10.134.146.124");
 	len = sizeof(ssin);
 
 	return 1;
 }
 int main(int argc, char* argv[])
 {
-	//freopen("D:\\Desktop\\计网作业\\作业三\\NetworkHomework\\input.txt","r",stdin);
+	freopen("D:\\Desktop\\计网作业\\作业三\\NetworkHomework\\input.txt","r",stdin);
 	cout<<"please input the source port: ";
 	cin>>DesPort;
 	
