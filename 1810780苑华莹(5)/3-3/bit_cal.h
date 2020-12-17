@@ -1,3 +1,6 @@
+#ifndef BIT_CAL.H
+#define BIT_CAL.H
+
 #include<bits/stdc++.h>
 using namespace std;
 
@@ -38,4 +41,4 @@ string match(string s,int Len=16)
 	ans+=s;
 	return ans;
 } 
-
+#endif

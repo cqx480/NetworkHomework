@@ -17,7 +17,7 @@ using namespace std;
 const int max_len = 12000; 
 
 //sendbase最大值 
-const int maxn=15000;
+const int maxn=150000;
  
 //整个数据包的最大长度 
 const int N=14000;
@@ -46,8 +46,7 @@ char recvData[N];
 //源端口，目的端口 
 string SourcePort="8888",DesPort;
 
-//接收缓冲区 
-queue<package> file_que;
+
 
 //文件名称 
 set<string>pic_set;
@@ -84,8 +83,8 @@ void* receive(void* args)
 }
 
 //采用慢启动拥塞控制算法，初始win_size=1
-//窗口大小的阈值设置为64 ,cur代表慢启动阶段的交互次数 
-int ssthresh=64,cur=1,base=1;
+//窗口大小的阈值设置为3 ,cur代表慢启动阶段的交互次数 
+int ssthresh=3,cur=1,base=1;
 
 void maintain_sb()
 {
@@ -104,10 +103,12 @@ void _rdt_send(string flag)
 	sendto(sclient, sdata.c_str(), sdata.size(), 0, (sockaddr*)&ssin, len);
 }
 
+int ee=0;
 //数据包发射器 
 //根据id计算seqnum ,cur代表当前的packNum 
 void rdt_send(string s, string packNum, bool end)
 {
+	if(s=="")ee++;
 	string flag = match("");	
 	 
 	cout<<"发送数据包，packNum: "<< to_dec(packNum)<<"\n"; 
@@ -118,9 +119,10 @@ void rdt_send(string s, string packNum, bool end)
 	string sdata = encode(p);
 	sendto(sclient, sdata.c_str(), sdata.size(), 0, (sockaddr*)&ssin, len);
 }
-
+int dd;
 void rdt_send(simple_packet p)
 {
+	if(p.data=="")dd++;
 	rdt_send(p.data,p.packNum,p.end);
 }
 
@@ -129,8 +131,17 @@ int acknum;
 
 void reno_FSM(int nxt_packnum)
 {			
+	cout<<"nxt_packnum: "<<nxt_packnum<<"\n";
+	cout<<"acknum: "<<acknum<<"\n";
 	
-	if(acknum == nxt_packnum){ //dup ACK
+	if(acknum == nxt_packnum) //dup ACK
+	{
+//		//引入快速重传:收到三个重复ack就会重传，不用等超时 
+//		if(dupACKcount==3&&!ack_state[nxt_packnum]){
+//				cout<<"重传数据包："<<nxt_packnum<<"\n";
+//				rdt_send(unrecv[(nxt_packnum)%1001].pack);
+//		}
+		
 		if(reno_state==0||reno_state==1)
 		{
 			dupACKcount++;
@@ -138,12 +149,12 @@ void reno_FSM(int nxt_packnum)
 			{
 				ssthresh= win_size/2;
 				win_size = ssthresh + 3;
-				reno_state=2;//状态机状态由 "慢启动"或"拥塞控制" 变 "快速恢复" 
+				reno_state=2;//状态机状态由 "慢启动"或"拥塞控制" 变 "快速恢复" 				
 			}
 		}
 		else if(reno_state==2)
 		{
-			if(win_size<5000)win_size++;
+			if(win_size<1000)win_size++;
 		}
 	}
 	else //new ack
@@ -158,7 +169,7 @@ void reno_FSM(int nxt_packnum)
 		}
 		else if(reno_state==1)
 		{
-			if(win_size<5000)win_size++;//由于win_size本身就表示数据包的序号而不是字节的序号，因此不需要再乘以MSS 
+			if(win_size<1000)win_size++;//由于win_size本身就表示数据包的序号而不是字节的序号，因此不需要再乘以MSS 
 			dupACKcount = 0 ;
 		}
 		else if(reno_state==2)
@@ -184,14 +195,16 @@ void* recv_manager(void* args)
 		if(check_lose(p))
 		{
 			int pid=stoi(to_dec(p.packNum));
-//			cout<<"sendbase: "<<sendbase;
-//			cout<<"   win_size: "<<win_size<<"\n"; 
-//			cout<<"接收数据包: "<<pid<<"\n";
-			for(int i=sendbase;i<=pid;++i)	
+			cout<<"sendbase: "<<sendbase;
+			cout<<"   win_size: "<<win_size<<"\n"; 
+			cout<<"=========================期望发送的nxt_seq: "<<pid<<"\n";
+			
+			for(int i=sendbase;i<pid;++i)	
 			{
 				ack_state[i]=1;	
 				valid[i]=0;				
-			}						
+			}	
+								
 			maintain_sb();			
 			//维护状态机
 			reno_FSM(nxt_packnum);		
@@ -211,25 +224,24 @@ void* timeout_handler(void* args)
 {
 	while(1)
 	{
-		Sleep(1000);
+		Sleep(50);
 		for(int i=sendbase;i<sendbase+win_size;++i)
 		{			
 			if(!valid[i]||ack_state[i])continue;
 			
-			int id=i%1001;
+			int id=i;//%1001;
 			int cur_pckn=unrecv[id].packNum;		
 			clock_t cur_time=clock(); 
-			
-			//cout<<"aaaaaaaaaaaaaa unrecv["<<id<<"].packNum="<<cur_pckn<<"\n";
 			
 			//超时重传 				
 			if((cur_time-unrecv[id].start)>50)
 			{		
-//				cout<<"=======================\n";			
-//				cout<<sendbase<<" "<<win_size<<"\n";
-//				cout<<"超时packnum: "<<cur_pckn<<"\n";
-//				cout<<"id: "<<id<<"\n";
-				unrecv[id].start=clock();		
+				cout<<"******************************************\n";			
+				cout<<sendbase<<" "<<win_size<<"\n";
+				cout<<"超时packnum: "<<cur_pckn<<"\n";
+				cout<<"id: "<<id<<"\n";
+				unrecv[id].start=clock();	
+				cout<<"重新发送数据包，packnum"<<cur_pckn<<"\n";	
 				rdt_send(unrecv[id].pack);
 				
 				//超时状态转移	
@@ -267,22 +279,25 @@ void send()
 
 	while(cur_packnum<old_sendbase+groupNum)
 	{
+//		cout<<"cur_packnum: "<<cur_packnum<<"\n";
+//		cout<< sendbase<<" "<<win_size<<"\n";
+		if(win_size<=0)win_size=1;
 		while(cur_packnum<(sendbase+win_size)&&cur_packnum<(old_sendbase+groupNum)) 
 		{			
 			//初始化一些相关参数 		
 				
-			sp.end=(cnt==(groupNum-1));	sp.data=groupData[cnt]; 
+			sp.end=(cnt==(groupNum-1));	
+			sp.data=groupData[cnt]; 
 			sp.packNum=match(to_bin(to_string(cur_packnum)), 32);
 			no.start=clock(); no.packNum= cur_packnum;	
 			no.pack=sp;
 			
-			int id=cur_packnum%1001;
+			int id=cur_packnum;//%1001;
 			
 			//当前数据包设置成未收到模式 
 			ack_state[id]=0;
 			valid[id]=1;			
 			unrecv[id]=no;
-			cout<<"cccccccccccccc unrecv["<<id<<"].packNum="<<cur_packnum<<"\n";
 			//发送数据包		
 			rdt_send(sp);
 			//cout<<"cur_packnum: "<<cur_packnum<<"\n";			
@@ -291,6 +306,8 @@ void send()
 		}
 	}
 	cout<<win_size<<"\n";
+	if(groupNum>10)Sleep(2000000);
+	//while(cur_packnum>sendbase);
 } 
 
 void get_pic()
@@ -397,7 +414,7 @@ bool init()
 	state = 0;//首先要设置当前状态为握手模式 
 		 
 	pic_set.insert("1.jpg");pic_set.insert("2.jpg");pic_set.insert("3.jpg");pic_set.insert("1.txt");
-	
+	pic_set.insert("small.png");pic_set.insert("mid.png");
 	
 	WORD socketVersion = MAKEWORD(2, 2);
 	WSADATA wsaData;
@@ -410,7 +427,7 @@ bool init()
 	
 	ssin.sin_family = AF_INET;
 	ssin.sin_port = htons(stoi(DesPort));
-	ssin.sin_addr.S_un.S_addr = inet_addr("127.0.0.1");//inet_addr("10.134.146.124");
+	ssin.sin_addr.S_un.S_addr = inet_addr("127.0.0.1");
 	len = sizeof(ssin);
 
 	return 1;
@@ -418,6 +435,7 @@ bool init()
 int main(int argc, char* argv[])
 {
 	freopen("D:\\Desktop\\计网作业\\作业三\\NetworkHomework\\input.txt","r",stdin);
+//	freopen("D:\\Desktop\\计网作业\\作业三\\NetworkHomework\\client.txt","w",stdout);
 	cout<<"please input the source port: ";
 	cin>>DesPort;
 	

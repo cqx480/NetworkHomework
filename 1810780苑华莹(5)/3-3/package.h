@@ -1,3 +1,6 @@
+#ifndef PACKAGE
+#define PACKAGE
+
 #include<bits/stdc++.h>
 #include"bit_cal.h"
 #include "common.h"
@@ -220,7 +223,7 @@ bool check_lose(package p)
 	return news == olds;
 }
 
-
+#endif
 
 
 

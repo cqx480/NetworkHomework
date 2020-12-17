@@ -15,7 +15,7 @@ const int max_len = 12000;
 //整个数据包的最大长度 
 const int N=14000;
 
-const int maxn=14000;
+const int maxn=150000;
 
 #pragma comment(lib, "ws2_32.lib") 
 
@@ -49,7 +49,7 @@ set<string> pic_set;
 clock_t start,finish;
 
 //丢包率：每mod个数据包丢一个数据包 
-int mod=10;
+int mod=2;
 
 int recvbase; 
 
@@ -139,10 +139,11 @@ void* receive(void* args)
 			//cout<<"成功接收一条消息\n"; 
 			
 			//每mod个包就丢一个 
-//			if((cnt++)%mod==5){
-//				cout<<"丢弃数据包 "<< to_dec(p.packNum)<<"\n";
-//				continue;	
-//			}		
+			if((cnt++)%mod==5){
+				cout<<"丢弃数据包 "<< to_dec(p.packNum)<<"\n";
+				continue;	
+			}	
+			cout<<"recvbase: "<<recvbase<<"\n";	
 			file_que.push(p);
 			memset(recvData,0,sizeof(recvData))	;	
 		}
@@ -151,7 +152,7 @@ void* receive(void* args)
 
 void rdt_send(string s, string packNum)
 {
-	//cout<<"==============================成功发送一条消息,packNum"<<to_dec(packNum)<<"\n"; 	
+	cout<<"==============================成功发送一条消息,packNum"<<to_dec(packNum)<<"\n"; 	
 	s="";
 	string flag = match("");
 	flag[ACK] = '1';
@@ -209,15 +210,21 @@ void recv_manager()
 			
 			if(check_lose(p))
 			{
-				//cout<<"接收到数据包，packNum："<<to_dec(p.packNum) <<"\n";
-				int pid=stoi(to_dec(p.packNum));		
-				recv_state[pid]=1;	
-					
+				cout<<"接收到数据包，packNum："<<to_dec(p.packNum) <<"\n";
+				int pid=stoi(to_dec(p.packNum));	
+				if(pid==1110)cout<<"aaaaaaaaaaaaaaaaaa\n";	
+				recv_state[pid]=1;					
 				maintain_rb();
-				string nxt_seq=match(to_bin(to_string(recvbase-1)),32);
+				
+				//recvbase相当于nxt_seq 
+				string nxt_seq=match(to_bin(to_string(recvbase)),32);
 				rdt_send("",nxt_seq);
 				
+				//暂存收到的部分数据 
 				pic_data[pid-begin_id]=p.data;
+				int bb=0;
+				if(p.data=="")bb++;
+				
 				if(pic_set.count(p.data)){
 					pic=1;
 					recv_data=file_name=p.data;
@@ -228,9 +235,22 @@ void recv_manager()
 				{
 					if(pic&&!pic_set.count(p.data))
 					{
+						int cc=0;
 						//按顺序组合pic_data 
-						for(int i=0;i<=pid-begin_id;++i)recv_data+=pic_data[i];
+						for(int i=0;i<=pid-begin_id;++i)
+						{
+							if(pic_data[i]=="")cc++;
+							recv_data+=pic_data[i];
+						}
 						
+						cout<<"##################################################\n";
+						cout<<"##################################################\n";
+						cout<<"##################################################\n";
+						cout<<"##################################################\n";
+						cout<<"pid-begin_id:"<<pid-begin_id<<"\n"; 
+						cout<<"recv pic size: "<<recv_data.size()<<"\n";
+						cout<<"cc: "<<cc<<"\n"; 
+						cout<<"bb: "<<bb<<"\n"; 
 						save_pic();
 						finish=clock();
 						cout<<"传输用时: "<<finish-start<<endl;
@@ -286,10 +306,12 @@ bool init()
 	}
 	
 	pic_set.insert("1.jpg");pic_set.insert("2.jpg");pic_set.insert("3.jpg");pic_set.insert("1.txt");
+	pic_set.insert("small.png");pic_set.insert("mid.png");
 	return 1;
 }
 int main(int argc, char* argv[])
 {
+//	freopen("D:\\Desktop\\计网作业\\作业三\\NetworkHomework\\server.txt","w",stdout);
 	if (!init())return 0;
 
 	//接受信息要新开一个线程

@@ -1,4 +1,5 @@
 #include<bits/stdc++.h>
+#include"package.h"
 using namespace std;
 
 
@@ -30,5 +31,10 @@ struct node{
 	}
 };
 const int M=1e5+10;
+
 //当前窗口未确认的packnum和相关信息 
 node unrecv[M];
+
+
+//接收缓冲区 
+queue<package> file_que;
