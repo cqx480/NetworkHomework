@@ -15,6 +15,7 @@ const int max_len = 12000;
 //整个数据包的最大长度 
 const int N=14000;
 
+//数组最大值 
 const int maxn=150000;
 
 #pragma comment(lib, "ws2_32.lib") 
@@ -49,7 +50,7 @@ set<string> pic_set;
 clock_t start,finish;
 
 //丢包率：每mod个数据包丢一个数据包 
-int mod=2;
+int mod=100;
 
 int recvbase; 
 
@@ -138,12 +139,12 @@ void* receive(void* args)
 			package p; decode(string(recvData), p);
 			//cout<<"成功接收一条消息\n"; 
 			
-			//每mod个包就丢一个 
-			if((cnt++)%mod==5){
-				cout<<"丢弃数据包 "<< to_dec(p.packNum)<<"\n";
-				continue;	
-			}	
-			cout<<"recvbase: "<<recvbase<<"\n";	
+//			//每mod个包就丢一个 
+//			if((cnt++)%mod==5){
+//				cout<<"丢弃数据包 "<< to_dec(p.packNum)<<"\n";
+//				continue;	
+//			}	
+//			cout<<"recvbase: "<<recvbase<<"\n";	
 			file_que.push(p);
 			memset(recvData,0,sizeof(recvData))	;	
 		}
@@ -152,7 +153,7 @@ void* receive(void* args)
 
 void rdt_send(string s, string packNum)
 {
-	cout<<"==============================成功发送一条消息,packNum"<<to_dec(packNum)<<"\n"; 	
+//	cout<<"==============================成功发送一条消息,packNum"<<to_dec(packNum)<<"\n"; 	
 	s="";
 	string flag = match("");
 	flag[ACK] = '1';
@@ -210,9 +211,8 @@ void recv_manager()
 			
 			if(check_lose(p))
 			{
-				cout<<"接收到数据包，packNum："<<to_dec(p.packNum) <<"\n";
-				int pid=stoi(to_dec(p.packNum));	
-				if(pid==1110)cout<<"aaaaaaaaaaaaaaaaaa\n";	
+//				cout<<"接收到数据包，packNum："<<to_dec(p.packNum) <<"\n";
+				int pid=stoi(to_dec(p.packNum));		
 				recv_state[pid]=1;					
 				maintain_rb();
 				
@@ -296,7 +296,7 @@ bool init()
 	sockaddr_in serAddr;
 	serAddr.sin_family = AF_INET;
 	serAddr.sin_port = htons(8888);
-	serAddr.sin_addr.S_un.S_addr = INADDR_ANY;//inet_addr("10.134.146.124");//INADDR_ANY;//inet_addr("127.0.0.1");
+	serAddr.sin_addr.S_un.S_addr = INADDR_ANY;//inet_addr("127.0.0.2");//INADDR_ANY;//inet_addr("10.134.146.124");//INADDR_ANY;//inet_addr("127.0.0.1");
 
 	if (bind(serSocket, (sockaddr*)&serAddr, sizeof(serAddr)) == SOCKET_ERROR)
 	{

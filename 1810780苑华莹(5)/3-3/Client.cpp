@@ -111,7 +111,7 @@ void rdt_send(string s, string packNum, bool end)
 	if(s=="")ee++;
 	string flag = match("");	
 	 
-	cout<<"发送数据包，packNum: "<< to_dec(packNum)<<"\n"; 
+//	cout<<"发送数据包，packNum: "<< to_dec(packNum)<<"\n"; 
 	//最后一组要加标志位 
 	if(end)flag[END]='1';
 
@@ -131,16 +131,16 @@ int acknum;
 
 void reno_FSM(int nxt_packnum)
 {			
-	cout<<"nxt_packnum: "<<nxt_packnum<<"\n";
-	cout<<"acknum: "<<acknum<<"\n";
+//	cout<<"nxt_packnum: "<<nxt_packnum<<"\n";
+//	cout<<"acknum: "<<acknum<<"\n";
 	
 	if(acknum == nxt_packnum) //dup ACK
 	{
-//		//引入快速重传:收到三个重复ack就会重传，不用等超时 
-//		if(dupACKcount==3&&!ack_state[nxt_packnum]){
+		//引入快速重传:收到三个重复ack就会重传，不用等超时 
+		if(dupACKcount==3&&!ack_state[nxt_packnum]){
 //				cout<<"重传数据包："<<nxt_packnum<<"\n";
-//				rdt_send(unrecv[(nxt_packnum)%1001].pack);
-//		}
+				rdt_send(unrecv[(nxt_packnum)%1001].pack);
+		}
 		
 		if(reno_state==0||reno_state==1)
 		{
@@ -195,9 +195,9 @@ void* recv_manager(void* args)
 		if(check_lose(p))
 		{
 			int pid=stoi(to_dec(p.packNum));
-			cout<<"sendbase: "<<sendbase;
-			cout<<"   win_size: "<<win_size<<"\n"; 
-			cout<<"=========================期望发送的nxt_seq: "<<pid<<"\n";
+//			cout<<"sendbase: "<<sendbase;
+//			cout<<"   win_size: "<<win_size<<"\n"; 
+//			cout<<"=========================期望发送的nxt_seq: "<<pid<<"\n";
 			
 			for(int i=sendbase;i<pid;++i)	
 			{
@@ -234,14 +234,14 @@ void* timeout_handler(void* args)
 			clock_t cur_time=clock(); 
 			
 			//超时重传 				
-			if((cur_time-unrecv[id].start)>50)
+			if((cur_time-unrecv[id].start)>100)
 			{		
 				cout<<"******************************************\n";			
 				cout<<sendbase<<" "<<win_size<<"\n";
 				cout<<"超时packnum: "<<cur_pckn<<"\n";
 				cout<<"id: "<<id<<"\n";
-				unrecv[id].start=clock();	
-				cout<<"重新发送数据包，packnum"<<cur_pckn<<"\n";	
+				cout<<"重新发送数据包，packnum"<<cur_pckn<<"\n";
+				unrecv[id].start=clock();						
 				rdt_send(unrecv[id].pack);
 				
 				//超时状态转移	
@@ -259,8 +259,7 @@ node no;
 simple_packet sp;
 
 void send()
-{
-	
+{	
 	//先分组 
 	groupNum = (sendData.size()+max_len-1)/max_len;
 	vector<string> groupData;
@@ -434,7 +433,7 @@ bool init()
 }
 int main(int argc, char* argv[])
 {
-	freopen("D:\\Desktop\\计网作业\\作业三\\NetworkHomework\\input.txt","r",stdin);
+//	freopen("D:\\Desktop\\计网作业\\作业三\\NetworkHomework\\input.txt","r",stdin);
 //	freopen("D:\\Desktop\\计网作业\\作业三\\NetworkHomework\\client.txt","w",stdout);
 	cout<<"please input the source port: ";
 	cin>>DesPort;
